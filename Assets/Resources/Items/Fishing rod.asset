@@ -10,10 +10,10 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 591a3adadb162a14b9ba16c2a4c9634c, type: 3}
-  m_Name: Basic sword
+  m_Name: Fishing rod
   m_EditorClassIdentifier: 
-  title: Basic sword
-  description: Very basic sword, nothing interesting in here
-  sprite: {fileID: -1374977600, guid: 01aa5474498eecc43a1ea53017400f71, type: 3}
-  type: 0
+  title: Fishing rod
+  description: Use it to catch some fish
+  sprite: {fileID: -308571083, guid: 01aa5474498eecc43a1ea53017400f71, type: 3}
+  type: 1
   isStackable: 0

@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
@@ -6,46 +5,54 @@ using UnityEngine;
 public class Inventory : MonoBehaviour
 {
     private static Inventory _instance;
-    public List<InventoryItemAndQuantity> items;
+    [SerializeField]
+    public List<InventoryItemData> items = new();
     string itemsJSONpath, itemsJSONcontent;
 
     [System.Serializable]
-    public struct InventoryItemAndQuantity
+    public class InventoryItemData
     {
-        private ItemData itemData;
-        public ItemData ItemData
-        {
-            get { return itemData; }
-            private set { itemData = value; }
-        }
-        private int quantity;
-        public int Quantity
-        {
-            get { return quantity; }
-            set { quantity = value; }
-        }
+        public ItemData itemData;
+        public int quantity;
         // позиция в UI-инвентаре
-        private Vector2 index;
-        public Vector2 Index
-        {
-            get { return index; }
-            set { index = value; }
-        }
+        public Vector2 index;
 
-        public InventoryItemAndQuantity(ItemData initialData, int initialQuantity, Vector2 initialIndex)
+        public InventoryItemData(ItemData initialData, int initialQuantity, Vector2 initialIndex)
         {
             itemData = initialData;
             quantity = initialQuantity;
             index = initialIndex;
         }
 
-        public static InventoryItemAndQuantity operator +(InventoryItemAndQuantity itemA, InventoryItemAndQuantity itemB)
+        public static InventoryItemData operator +(InventoryItemData itemA, InventoryItemData itemB)
         {
-            if (itemA.itemData == itemB.itemData && itemA.itemData.isStackable && itemB.itemData.isStackable)
-                return new InventoryItemAndQuantity(itemA.itemData, itemA.Quantity + itemB.Quantity, itemA.index);
+            if (itemA.itemData == itemB.itemData && itemA.itemData.isStackable)
+                return new InventoryItemData(itemA.itemData, itemA.quantity + itemB.quantity, itemA.index);
             return itemA;
         }
+
+        public static bool operator ==(InventoryItemData itemA, InventoryItemData itemB)
+        {
+            if (itemA.itemData == itemB.itemData && itemA.quantity == itemB.quantity)
+                return true;
+            return false;
+        }
+
+        public static bool operator !=(InventoryItemData itemA, InventoryItemData itemB)
+        {
+            if (itemA.itemData == itemB.itemData && itemA.quantity == itemB.quantity)
+                return false;
+            return true;
+        }
     }
+    // костыль для json utility, который не может в сериализацию списков
+    [System.Serializable]
+    public class ItemsListWrapper
+    {
+        public List<InventoryItemData> list;
+    }
+
+    ItemsListWrapper wrapper = new();
 
     private void Awake()
     {
@@ -59,53 +66,51 @@ public class Inventory : MonoBehaviour
         using (FileStream f = File.Open(itemsJSONpath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None)) f.Dispose();       
         
         itemsJSONcontent = File.ReadAllText(itemsJSONpath);
-        if (itemsJSONcontent != "") items = JsonUtility.FromJson<List<InventoryItemAndQuantity>>(itemsJSONcontent);
+        if (itemsJSONcontent != "") items = JsonUtility.FromJson<List<InventoryItemData>>(itemsJSONcontent);
         else items = new();
     }
 
-    public static bool CheckItemExistance(InventoryItemAndQuantity targetItem)
+    public static bool CheckItemExistance(InventoryItemData targetItem)
     {
-        return _instance.items.Exists(x => x.ItemData == targetItem.ItemData);
+        return _instance.items.Exists(x => x == targetItem && x.index == targetItem.index);
     }
 
-    public static InventoryItemAndQuantity GetItem(InventoryItemAndQuantity targetItem)
+    public static InventoryItemData GetItem(InventoryItemData targetItem)
     {
-        return _instance.items.Find(x => x.ItemData == targetItem.ItemData);
+        return _instance.items.Find(x => x == targetItem && x.index == targetItem.index);
     }
-    
-    public static void AddOrStackItem(InventoryItemAndQuantity newItem)
+
+    public static void AddItem(InventoryItemData newItem)
     {
-        if (!CheckItemExistance(newItem))
-            _instance.items.Add(newItem);
-        else
+        _instance.items.Add(newItem);
+    }
+
+    public static void StackItem(InventoryItemData targetItem, int addingValue)
+    {
+        if (CheckItemExistance(targetItem) && targetItem.itemData.isStackable)
         {
-            if (!newItem.ItemData.isStackable)
-                _instance.items.Add(newItem);
-            else
-            {
-                InventoryItemAndQuantity existingItem = GetItem(newItem);
-                existingItem.Quantity += newItem.Quantity;
-            }
+            InventoryItemData existingItem = GetItem(targetItem);
+            existingItem.quantity += addingValue;
         }
     }
 
-    public static bool RemoveItem(InventoryItemAndQuantity targetItem)
+    public static bool RemoveItem(InventoryItemData targetItem)
     {
         if (!CheckItemExistance(targetItem)) return false;
 
-        InventoryItemAndQuantity inventoryItem = GetItem(targetItem);
+        InventoryItemData inventoryItem = GetItem(targetItem);
+        return _instance.items.Remove(inventoryItem);
+    }
 
-        if (inventoryItem.Quantity == targetItem.Quantity)
-            return _instance.items.Remove(inventoryItem);
-        else
-            inventoryItem.Quantity -= targetItem.Quantity;
-
-        return true;
+    public static List<InventoryItemData> GetInventoryList()
+    {
+        return _instance.items;
     }
 
     public void SaveToJSON()
     {
-        itemsJSONcontent = JsonUtility.ToJson(items, true);
+        wrapper.list = items;
+        itemsJSONcontent = JsonUtility.ToJson(wrapper, true);
         File.WriteAllText(itemsJSONpath, itemsJSONcontent);
     }
     
@@ -114,6 +119,7 @@ public class Inventory : MonoBehaviour
         using (FileStream f = File.Open(itemsJSONpath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None)) f.Dispose();       
         
         itemsJSONcontent = File.ReadAllText(itemsJSONpath);
-        if (itemsJSONcontent != "") items = JsonUtility.FromJson<List<InventoryItemAndQuantity>>(itemsJSONcontent);
+        if (itemsJSONcontent != "") wrapper = JsonUtility.FromJson<ItemsListWrapper>(itemsJSONcontent);
+        items = wrapper.list;
     }
 }

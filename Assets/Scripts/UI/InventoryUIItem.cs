@@ -5,7 +5,7 @@ using UnityEngine.EventSystems;
 
 public class InventoryUIItem : MonoBehaviour, IDragHandler, IBeginDragHandler, IEndDragHandler, IPointerEnterHandler, IPointerExitHandler, IPointerDownHandler
 {
-    public Inventory.InventoryItemAndQuantity itemAndQuantity;
+    public Inventory.InventoryItemData itemAndQuantity;
     [SerializeField] Image image;
     [SerializeField] TextMeshProUGUI textQuontity;
     private Transform lastPlace, newPlace, canvas;
@@ -17,49 +17,91 @@ public class InventoryUIItem : MonoBehaviour, IDragHandler, IBeginDragHandler, I
 
     public void SetVisualInfo()
     {
-        image.sprite = itemAndQuantity.ItemData.sprite;
-        textQuontity.text = itemAndQuantity.Quantity > 1? itemAndQuantity.Quantity.ToString() : "";
+        image.sprite = itemAndQuantity.itemData.sprite;
+        textQuontity.text = itemAndQuantity.itemData.isStackable ? itemAndQuantity.quantity.ToString() : "";
     }
 
     public void OnBeginDrag(PointerEventData eventData)
     {
         lastPlace = transform.parent;
-        transform.SetParent(canvas);
-        UITooltipSystem.HideTooltip(itemAndQuantity.ItemData.description);
+        transform.SetParent(canvas); // чтобы перетаскиваемый предмет был поверх интерфейса
+        UITooltipSystem.HideTooltip(itemAndQuantity.itemData.description);
     }
 
     public void OnDrag(PointerEventData eventData)
     {
         transform.position = Input.mousePosition;
+        UITooltipSystem.HideTooltip(itemAndQuantity.itemData.description);
     }
-
+    
     public void OnEndDrag(PointerEventData eventData)
     {
-        if (newPlace)
+        if (!newPlace)
+            transform.SetParent(lastPlace);
+        else
         {
-            if (lastPlace.TryGetComponent(out InventoryUISlot previousSlot))
-                if (previousSlot.item == this)
-                    previousSlot.item = null;
-
-            if (newPlace.TryGetComponent(out InventoryUISlot newPlaceSlot))
+            if (!lastPlace.TryGetComponent(out InventoryUISlot previousSlot))
             {
-                if (!newPlaceSlot.item)
+                if (newPlace.TryGetComponent(out InventoryUISlot newPlaceSlot))
                 {
-                    newPlaceSlot.item = this;
-                    lastPlace = newPlace;
-                }
-                else if (newPlaceSlot.item.itemAndQuantity.ItemData == itemAndQuantity.ItemData && newPlaceSlot.item.itemAndQuantity.ItemData.isStackable)
-                {
-                    newPlaceSlot.item.itemAndQuantity.Quantity += itemAndQuantity.Quantity;
-                    newPlaceSlot.item.SetVisualInfo();
-                    Destroy(gameObject);
-                    return;
+                    if (!newPlaceSlot.item)
+                    {
+                        newPlaceSlot.item = this;
+                        itemAndQuantity.index = newPlaceSlot.index;
+                        lastPlace = newPlace;
+                        Inventory.AddItem(itemAndQuantity);
+                    }
+                    else
+                    {
+                        if (newPlaceSlot.item.itemAndQuantity.itemData == itemAndQuantity.itemData && itemAndQuantity.itemData.isStackable)
+                        {
+                            Inventory.StackItem(newPlaceSlot.item.itemAndQuantity, itemAndQuantity.quantity);
+
+                            newPlaceSlot.item.SetVisualInfo();
+                            UITooltipSystem.SelectItem(newPlaceSlot.item.gameObject);
+                            UITooltipSystem.ShowInfoWindow(newPlaceSlot.item.itemAndQuantity);
+
+                            Destroy(gameObject);
+                        }
+                    }
                 }
             }
+            else
+            {
+                if (newPlace.TryGetComponent(out InventoryUISlot newPlaceSlot))
+                {
+                    if (!newPlaceSlot.item)
+                    {
+                        if (previousSlot.item == this)
+                            previousSlot.item = null;
+
+                        newPlaceSlot.item = this;
+                        itemAndQuantity.index = newPlaceSlot.index;
+
+                        lastPlace = newPlace;
+                    }
+                    else
+                    {
+                        if (newPlaceSlot.item.itemAndQuantity.itemData == itemAndQuantity.itemData && itemAndQuantity.itemData.isStackable)
+                        {
+                            if (previousSlot.item == this)
+                                previousSlot.item = null;
+
+                            Inventory.StackItem(newPlaceSlot.item.itemAndQuantity, itemAndQuantity.quantity);
+
+                            newPlaceSlot.item.SetVisualInfo();
+                            UITooltipSystem.SelectItem(newPlaceSlot.item.gameObject);
+                            UITooltipSystem.ShowInfoWindow(newPlaceSlot.item.itemAndQuantity);
+
+                            Inventory.RemoveItem(itemAndQuantity);
+                            Destroy(gameObject);
+                        }
+                    }
+                }
+            }
+            
             transform.SetParent(newPlace);
         }
-        else
-            transform.SetParent(lastPlace);
 
         transform.position = lastPlace.position;
     }
@@ -68,7 +110,7 @@ public class InventoryUIItem : MonoBehaviour, IDragHandler, IBeginDragHandler, I
     {
         if (collision.TryGetComponent(out InventoryUISlot touchedSlot))
         {
-            if (!touchedSlot.item || (touchedSlot.item.itemAndQuantity.ItemData == itemAndQuantity.ItemData && touchedSlot.item.itemAndQuantity.ItemData.isStackable))
+            if (!touchedSlot.item || (touchedSlot.item.itemAndQuantity.itemData == itemAndQuantity.itemData && touchedSlot.item.itemAndQuantity.itemData.isStackable))
                 newPlace = collision.transform;
         }
     }
@@ -77,7 +119,7 @@ public class InventoryUIItem : MonoBehaviour, IDragHandler, IBeginDragHandler, I
     {
         if (collision.TryGetComponent(out InventoryUISlot touchedSlot))
         {
-            if (!touchedSlot.item || (touchedSlot.item.itemAndQuantity.ItemData == itemAndQuantity.ItemData && touchedSlot.item.itemAndQuantity.ItemData.isStackable))
+            if (!touchedSlot.item || (touchedSlot.item.itemAndQuantity.itemData == itemAndQuantity.itemData && touchedSlot.item.itemAndQuantity.itemData.isStackable))
                 newPlace = collision.transform;
         }
     }
@@ -90,17 +132,18 @@ public class InventoryUIItem : MonoBehaviour, IDragHandler, IBeginDragHandler, I
 
     public void OnPointerEnter(PointerEventData eventData)
     {
-        UITooltipSystem.ShowTooltip(itemAndQuantity.ItemData.description);
+        UITooltipSystem.ShowTooltipDelayed(itemAndQuantity.itemData.description);
     }
 
     public void OnPointerExit(PointerEventData eventData)
     {
-        UITooltipSystem.HideTooltip(itemAndQuantity.ItemData.description);
-        UITooltipSystem.HideInfoWindow(itemAndQuantity.ItemData);
+        UITooltipSystem.HideTooltip(itemAndQuantity.itemData.description);
+        UITooltipSystem.HideInfoWindowDelayed(itemAndQuantity);
     }
 
     public void OnPointerDown(PointerEventData eventData)
     {
-        UITooltipSystem.ShowInfoWindow(itemAndQuantity.ItemData);
+        UITooltipSystem.SelectItem(gameObject);
+        UITooltipSystem.ShowInfoWindow(itemAndQuantity);
     }
 }

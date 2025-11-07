@@ -12,58 +12,92 @@ public class UITooltipSystem : MonoBehaviour
     [Header("Information window")]
     [SerializeField] GameObject infoWindow;
     [SerializeField] Image infoImage;
-    [SerializeField] TextMeshProUGUI infoHeader, infoDescription;
-    string currentText;
-    ItemData currentItem;
+    [SerializeField] TextMeshProUGUI infoQuantity, infoHeader, infoDescription;
+    GameObject selectedItem;
+    Inventory.InventoryItemData selectedItemData;
     private void Awake()
     {
         _instance = this;
         _instance.tooltip.SetActive(false);
         _instance.infoWindow.SetActive(false);
     }
-    public static void ShowTooltip(string text)
-    {
-        _instance.tooltip.transform.position = Input.mousePosition;
-        _instance.currentText = text;
-        _instance.tooltipText.text = text;
 
-        _instance.Invoke(nameof(ShowTooltipAfterDelay), 1f);
+    public static void SelectItem(GameObject item)
+    {
+        _instance.selectedItem = item;
+        _instance.selectedItemData = item.GetComponent<InventoryUIItem>().itemAndQuantity;
     }
 
-    void ShowTooltipAfterDelay()
+    public static void DeselectItem(GameObject item)
+    {
+        if (_instance.selectedItem != item || !_instance.selectedItem)
+            return;
+
+        _instance.selectedItem = null;
+    }
+    // чтоб не загораживало объекты при быстром движении курсора
+    public static void ShowTooltipDelayed(string text)
+    {
+        _instance.tooltip.transform.position = Input.mousePosition;
+        _instance.tooltipText.text = text;
+
+        _instance.Invoke(nameof(ShowTooltip), 1f);
+    }
+
+    private void ShowTooltip()
     {
         _instance.tooltip.SetActive(true);
     }
 
     public static void HideTooltip(string text)
     {
-        if (_instance.currentText == text)
+        if (_instance.tooltipText.text == text)
         {
-            _instance.CancelInvoke(nameof(ShowTooltipAfterDelay));
+            _instance.CancelInvoke(nameof(ShowTooltip));
             _instance.tooltip.SetActive(false);
         }
     }
 
-    public static void ShowInfoWindow(ItemData data)
+    public static void ShowInfoWindow(Inventory.InventoryItemData data)
     {
-        _instance.CancelInvoke(nameof(HideWInfoWindowAfterDelay));
+        _instance.CancelInvoke(nameof(HideInfoWindow));
 
-        _instance.currentItem = data;
-
-        _instance.infoImage.sprite = data.sprite;
-        _instance.infoHeader.text = data.title;
-        _instance.infoDescription.text = data.description;
+        _instance.infoImage.sprite = data.itemData.sprite;
+        _instance.infoQuantity.text = data.quantity.ToString();
+        _instance.infoHeader.text = data.itemData.title;
+        _instance.infoDescription.text = data.itemData.description;
 
         _instance.infoWindow.SetActive(true);
     }
-    public static void HideInfoWindow(ItemData data)
+
+    public static void UpdateSelectedItemQuantity()
     {
-        if (_instance.currentItem == data)
-            _instance.Invoke(nameof(HideWInfoWindowAfterDelay), 3f);
+        if (!_instance.selectedItem) return;
+        
+        _instance.infoQuantity.text = _instance.selectedItemData.quantity.ToString();
     }
 
-    private void HideWInfoWindowAfterDelay()
+    // чтобы не сразу закрывалось окно
+    public static void HideInfoWindowDelayed(Inventory.InventoryItemData data)
+    {
+        if (!_instance.selectedItem) return;
+
+        if (_instance.selectedItemData == data)
+            _instance.Invoke(nameof(HideInfoWindow), 3f);
+    }
+
+    public static void HideInfoWindowImmidiately()
     {
         _instance.infoWindow.SetActive(false);
+    }
+
+    private void HideInfoWindow()
+    {
+        _instance.infoWindow.SetActive(false);
+    }
+
+    public static GameObject GetSelectedItem()
+    {
+        return _instance.selectedItem;
     }
 }
